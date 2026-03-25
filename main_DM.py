@@ -56,14 +56,14 @@ def main():
 
     data_save = []
 
-    # for weights and biases
-    wandb.init(
-    project="dataset_condensation",
-    name=f"{args.dataset}_{args.model}_{args.ipc}ipc_exp{exp}",  # unique for each experiment
-    config=args.__dict__  # log all hyperparameters
-    )
-
     for exp in range(args.num_exp):
+        # for weights and biases
+        wandb.init(
+        project="dataset_condensation",
+        name=f"{args.dataset}_{args.model}_{args.ipc}ipc_exp{exp}",  # unique for each experiment
+        config=args.__dict__  # log all hyperparameters
+        )
+        
         print('\n================== Exp %d ==================\n '%exp)
         print('Hyper-parameters: \n', args.__dict__)
         print('Evaluation model pool: ', model_eval_pool)
