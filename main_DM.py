@@ -5,6 +5,7 @@ import argparse
 import numpy as np
 import torch
 import torch.nn as nn
+import wandb
 from torchvision.utils import save_image
 from utils import get_loops, get_dataset, get_network, get_eval_pool, evaluate_synset, get_daparam, match_loss, get_time, TensorDataset, epoch, DiffAugment, ParamDiffAug
 
@@ -55,6 +56,12 @@ def main():
 
     data_save = []
 
+    # for weights and biases
+    wandb.init(
+    project="dataset_condensation",
+    name=f"{args.dataset}_{args.model}_{args.ipc}ipc_exp{exp}",  # unique for each experiment
+    config=args.__dict__  # log all hyperparameters
+    )
 
     for exp in range(args.num_exp):
         print('\n================== Exp %d ==================\n '%exp)
@@ -118,16 +125,15 @@ def main():
                     for it_eval in range(args.num_eval):
                         net_eval = get_network(model_eval, channel, num_classes, im_size).to(args.device) # get a random model
                         image_syn_eval, label_syn_eval = copy.deepcopy(image_syn.detach()), copy.deepcopy(label_syn.detach())
-                        
-                        #debug
-                        print("Synthetic data shape:", image_syn_eval.shape)
-                        print("Synthetic labels shape:", label_syn_eval.shape)
-                        print("Synthetic data mean:", image_syn_eval.mean().item())
-                        print("Synthetic data std:", image_syn_eval.std().item())
-
                         _, acc_train, acc_test = evaluate_synset(it_eval, net_eval, image_syn_eval, label_syn_eval, testloader, args)
                         accs.append(acc_test)
                     print('Evaluate %d random %s, mean = %.4f std = %.4f\n-------------------------'%(len(accs), model_eval, np.mean(accs), np.std(accs)))
+
+                    wandb.log({
+                        "eval_acc": np.mean(accs),
+                        "eval_std": np.std(accs),
+                        "iteration": it
+                    })
 
                     if it == args.Iteration: # record the final results
                         accs_all_exps[model_eval] += accs
@@ -207,12 +213,19 @@ def main():
             if it%10 == 0:
                 print('%s iter = %05d, loss = %.4f' % (get_time(), it, loss_avg))
 
+            wandb.log({
+                "iteration": it,
+                "loss": loss.item()
+            })
+
             if it == args.Iteration: # only record the final results
                 data_save.append([copy.deepcopy(image_syn.detach().cpu()), copy.deepcopy(label_syn.detach().cpu())])
                 torch.save({'data': data_save, 'accs_all_exps': accs_all_exps, }, os.path.join(args.save_path, 'res_%s_%s_%s_%dipc.pt'%(args.method, args.dataset, args.model, args.ipc)))
+                wandb.save(save_filename)
 
 
     print('\n==================== Final Results ====================\n')
+    wandb.finish()
     for key in model_eval_pool:
         accs = accs_all_exps[key]
         print('Run %d experiments, train on %s, evaluate %d random %s, mean  = %.2f%%  std = %.2f%%'%(args.num_exp, args.model, len(accs), key, np.mean(accs)*100, np.std(accs)*100))
