@@ -88,7 +88,8 @@ def main():
 
         ''' initialize the synthetic data '''
         image_syn = torch.randn(size=(num_classes*args.ipc, channel, im_size[0], im_size[1]), dtype=torch.float, requires_grad=True, device=args.device)
-        label_syn = torch.tensor([np.ones(args.ipc)*i for i in range(num_classes)], dtype=torch.long, requires_grad=False, device=args.device).view(-1) # [0,0,0, 1,1,1, ..., 9,9,9]
+        labels_np = np.array([np.ones(args.ipc)*i for i in range(num_classes)], dtype=np.int64)
+        label_syn = torch.tensor(labels_np, device=args.device).view(-1)
 
         if args.init == 'real':
             print('initialize synthetic data from random real images')
@@ -116,7 +117,14 @@ def main():
                     accs = []
                     for it_eval in range(args.num_eval):
                         net_eval = get_network(model_eval, channel, num_classes, im_size).to(args.device) # get a random model
-                        image_syn_eval, label_syn_eval = copy.deepcopy(image_syn.detach()), copy.deepcopy(label_syn.detach()) # avoid any unaware modification
+                        image_syn_eval, label_syn_eval = copy.deepcopy(image_syn.detach()), copy.deepcopy(label_syn.detach())
+                        
+                        #debug
+                        print("Synthetic data shape:", image_syn_eval.shape)
+                        print("Synthetic labels shape:", label_syn_eval.shape)
+                        print("Synthetic data mean:", image_syn_eval.mean().item())
+                        print("Synthetic data std:", image_syn_eval.std().item())
+
                         _, acc_train, acc_test = evaluate_synset(it_eval, net_eval, image_syn_eval, label_syn_eval, testloader, args)
                         accs.append(acc_test)
                     print('Evaluate %d random %s, mean = %.4f std = %.4f\n-------------------------'%(len(accs), model_eval, np.mean(accs), np.std(accs)))
